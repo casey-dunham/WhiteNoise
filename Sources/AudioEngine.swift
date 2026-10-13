@@ -1,98 +1,51 @@
 import AVFoundation
 import Combine
 
-enum NoiseType: String, CaseIterable, Identifiable {
-    case white = "White"
-    case brown = "Brown"
-    var id: String { rawValue }
-}
-
 class AudioEngine: ObservableObject {
     @Published var isPlaying = false
-    @Published var volume: Float = 1.0
-    @Published var noiseType: NoiseType = .white
+    @Published var volume: Float = 1.0 {
+        didSet { player?.volume = volume }
+    }
     @Published var timerRemaining: Int = 0
     @Published var timerActive = false
 
-    private var engine: AVAudioEngine?
-    private var sourceNode: AVAudioSourceNode?
+    private var player: AVAudioPlayer?
     private var countdownTimer: Timer?
     private var savedVolume: Float = 1.0
 
     func toggle() {
-        isPlaying ? stop() : start()
+        isPlaying ? pause() : start()
     }
 
     func start() {
-        guard engine == nil else { return }
-
-        let engine = AVAudioEngine()
-        let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
-
-        // Noise state lives entirely on the audio thread — no main-thread access
-        var renderType: NoiseType = self.noiseType
-        var brownValue: Float = 0
-        var lpFilter: Float = 0 // low-pass filter state for warm white noise
-
-        let sourceNode = AVAudioSourceNode(format: format) {
-            [weak self] _, _, frameCount, audioBufferList -> OSStatus in
-            guard let self = self else { return noErr }
-
-            let vol = self.volume
-            let type = self.noiseType
-
-            if type != renderType {
-                renderType = type
-                brownValue = 0
-            }
-
-            let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
-
-            for frame in 0..<Int(frameCount) {
-                let sample: Float
-                switch type {
-                case .white:
-                    // Deep warm noise — between white and brown (~900Hz cutoff)
-                    let raw = Float.random(in: -1...1)
-                    lpFilter = 0.12 * raw + 0.88 * lpFilter
-                    sample = min(1, max(-1, lpFilter * 4.0)) * vol
-                case .brown:
-                    // Integrated white noise with decay
-                    brownValue = brownValue * 0.97 + Float.random(in: -1...1) * 0.03
-                    sample = min(1, max(-1, brownValue * 3.5)) * vol
-                }
-
-                for buffer in ablPointer {
-                    let buf = UnsafeMutableBufferPointer<Float>(buffer)
-                    if frame < buf.count {
-                        buf[frame] = sample
-                    }
-                }
-            }
-
-            return noErr
-        }
-
-        engine.attach(sourceNode)
-        engine.connect(sourceNode, to: engine.mainMixerNode, format: format)
+        guard !isPlaying else { return }
 
         do {
-            try engine.start()
-            self.engine = engine
-            self.sourceNode = sourceNode
-            isPlaying = true
+            if player == nil {
+                guard let url = Bundle.main.url(forResource: "MatchedNoise", withExtension: "wav") else {
+                    throw CocoaError(.fileNoSuchFile)
+                }
+                let player = try AVAudioPlayer(contentsOf: url)
+                player.numberOfLoops = -1
+                player.volume = volume
+                player.prepareToPlay()
+                self.player = player
+            }
+            isPlaying = player?.play() == true
         } catch {
             print("Audio engine error: \(error)")
         }
     }
 
     func stop() {
-        engine?.stop()
-        if let node = sourceNode { engine?.detach(node) }
-        engine = nil
-        sourceNode = nil
-        isPlaying = false
+        pause()
+        player?.currentTime = 0
         cancelTimer()
+    }
+
+    func pause() {
+        player?.pause()
+        isPlaying = false
     }
 
     // MARK: - Sleep Timer

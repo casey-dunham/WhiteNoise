@@ -22,6 +22,7 @@ swiftc \
     Sources/*.swift
 
 cp Resources/Info.plist "$APP_BUNDLE/Contents/"
+cp Resources/MatchedNoise.wav "$APP_BUNDLE/Contents/Resources/"
 
 codesign --force --sign - "$APP_BUNDLE"
 

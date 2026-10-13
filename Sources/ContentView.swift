@@ -30,29 +30,7 @@ struct ContentView: View {
                 }
             }
             .buttonStyle(.plain)
-
-            // Noise type selector
-            HStack(spacing: 6) {
-                ForEach(NoiseType.allCases) { type in
-                    Button(action: { audioEngine.noiseType = type }) {
-                        Text(type.rawValue)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(
-                                audioEngine.noiseType == type
-                                    ? Color.black : Color.white.opacity(0.6)
-                            )
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 7)
-                            .background(
-                                audioEngine.noiseType == type
-                                    ? Color.white
-                                    : Color.white.opacity(0.06)
-                            )
-                            .cornerRadius(8)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+            .accessibilityLabel(audioEngine.isPlaying ? "Pause" : "Play")
 
             // Volume slider
             HStack(spacing: 10) {
@@ -63,6 +41,7 @@ struct ContentView: View {
 
                 Slider(value: $audioEngine.volume, in: 0...1)
                     .accentColor(.white)
+                    .accessibilityLabel("Volume")
 
                 Image(systemName: "speaker.wave.3.fill")
                     .font(.system(size: 10))
